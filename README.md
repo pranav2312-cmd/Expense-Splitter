@@ -133,7 +133,7 @@ FairShare/
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/yourusername/fairshare-expense-splitter.git
+https://github.com/pranav2312-cmd/Expense-Splitter
 ```
 
 ### 2. Open the project
