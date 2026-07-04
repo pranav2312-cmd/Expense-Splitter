@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FairShare // Modern Expense Splitter</title>
+  <meta name="description" content="FairShare – Split bills, track expenses with location & date, and settle debts instantly. Persistent bill history with search, filter, and CSV export.">
+  <!-- Import Google Font Outfit and Inter for modern typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <!-- Connect styles -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Background decorative glowing elements for premium modern aesthetic -->
+  <div class="glow-bg glow-1"></div>
+  <div class="glow-bg glow-2"></div>
+
+  <!-- Toast notification container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <main class="app-container">
+    
+    <!-- Application Header -->
+    <header class="app-header">
+      <div class="logo">
+        <span class="logo-accent">✨</span> FairShare
+      </div>
+      <h1>Expense Splitter</h1>
+      <p class="subtitle">Split bills, keep track of balances, and settle debts instantly without the headache.</p>
+    </header>
+    <div class="dashboard-grid">
+      
+      <!-- Section 1: Group Management -->
+      <section class="card glass-card" id="group-card">
+        <div class="card-header">
+          <span class="card-icon">👥</span>
+          <h2>Group Members</h2>
+        </div>
+        <div class="card-body">
+          <form id="add-member-form" class="input-group" onsubmit="event.preventDefault();">
+            <div class="input-field-wrapper">
+              <label for="member-name-input">Member Name</label>
+              <input type="text" id="member-name-input" placeholder="e.g., Alice" required autocomplete="off">
+            </div>
+            <button type="button" id="add-member-btn" class="btn btn-primary">Add Member</button>
+          </form>
+          <!-- Dynamic Member Badge List -->
+          <div class="member-list-wrapper">
+            <span class="label-text">Active Members:</span>
+            <div id="members-list" class="members-badges">
+              <p class="empty-text">No members added yet. Add some above to start!</p>
+            </div>
+          </div>
+        </div>
+      </section>
+      <!-- Section 2: Expense Logging -->
+      <section class="card glass-card" id="expense-card">
+        <div class="card-header">
+          <span class="card-icon">💸</span>
+          <h2>Log an Expense</h2>
+        </div>
+        <div class="card-body">
+          <form id="add-expense-form" onsubmit="event.preventDefault();">
+            <div class="form-row">
+              <div class="input-field-wrapper">
+                <label for="expense-desc">Description</label>
+                <input type="text" id="expense-desc" placeholder="e.g., Dinner, Uber, Groceries" required>
+              </div>
+            </div>
+            <div class="form-row split-row">
+              <div class="input-field-wrapper">
+                <label for="expense-amount">Amount (₹)</label>
+                <input type="number" id="expense-amount" placeholder="0.00" min="0.01" step="0.01" required>
+              </div>
+              <div class="input-field-wrapper">
+                <label for="expense-payer">Paid By</label>
+                <select id="expense-payer" required>
+                  <option value="" disabled selected>Select Payer</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row split-row">
+              <div class="input-field-wrapper">
+                <label for="expense-location">📍 Location / Place</label>
+                <input type="text" id="expense-location" placeholder="e.g., Cafe Coffee Day, Mumbai" autocomplete="off">
+              </div>
+              <div class="input-field-wrapper">
+                <label for="expense-date">📅 Date</label>
+                <input type="date" id="expense-date">
+              </div>
+            </div>
+            <button type="button" id="add-expense-btn" class="btn btn-secondary btn-full">Add Expense</button>
+          </form>
+        </div>
+      </section>
+      <!-- Section 3: Live Expense History -->
+      <section class="card glass-card" id="history-card">
+        <div class="card-header">
+          <span class="card-icon">📜</span>
+          <h2>Expense History</h2>
+        </div>
+        <div class="card-body">
+          <div class="scroll-container">
+            <ul id="expenses-list" class="transaction-list">
+              <li class="empty-text">No transactions logged yet.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+      <!-- Section 4: Split Calculation Engine -->
+      <section class="card glass-card" id="calculation-card">
+        <div class="card-header">
+          <span class="card-icon">📊</span>
+          <h2>Split Settlement</h2>
+        </div>
+        <div class="card-body">
+          <!-- Split Mode Toggle -->
+          <div class="split-mode-wrapper">
+            <span class="label-text">Split Mode:</span>
+            <div class="split-mode-toggle">
+              <button type="button" class="split-mode-btn active" id="mode-total-btn" data-mode="total">
+                📊 Split All Expenses
+              </button>
+              <button type="button" class="split-mode-btn" id="mode-custom-btn" data-mode="custom">
+                ✏️ Custom Amount
+              </button>
+            </div>
+          </div>
+          <!-- Custom Amount Input (hidden by default) -->
+          <div class="custom-amount-wrapper" id="custom-amount-wrapper" style="display: none;">
+            <div class="input-field-wrapper">
+              <label for="custom-split-amount">Enter Amount to Split (₹)</label>
+              <input type="number" id="custom-split-amount" placeholder="e.g., 5000" min="0.01" step="0.01">
+            </div>
+          </div>
+          <button id="calculate-btn" class="btn btn-accent btn-full">Calculate Split</button>
+          <!-- Split summary cards (Hidden initially or showing zero) -->
+          <div class="stats-grid">
+            <div class="stat-card">
+              <span class="stat-label">Total Expense</span>
+              <span id="total-expense-display" class="stat-value">₹0.00</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Per Person Share</span>
+              <span id="share-display" class="stat-value">₹0.00</span>
+            </div>
+          </div>
+          <!-- Breakdown list -->
+          <div class="breakdown-wrapper">
+            <h3>Individual Balances</h3>
+            <div id="breakdown-list" class="breakdown-list">
+              <p class="empty-text">Click "Calculate Split" to generate the balance breakdown.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 5: Full Bill History (NEW - full width) -->
+      <section class="card glass-card bill-history-section" id="bill-history-card">
+        <div class="card-header">
+          <span class="card-icon">🧾</span>
+          <h2>Bill History</h2>
+          <div class="card-header-right">
+            <span id="history-count-badge" class="history-count-badge">0 bills</span>
+          </div>
+        </div>
+        <div class="card-body">
+          <!-- Filter bar -->
+          <div class="history-filter-bar">
+            <div class="input-field-wrapper filter-input">
+              <input type="text" id="history-search" placeholder="🔍 Search by description or location...">
+            </div>
+            <div class="input-field-wrapper filter-input" style="flex:0.6;">
+              <select id="history-filter-payer">
+                <option value="">All Payers</option>
+              </select>
+            </div>
+            <div class="input-field-wrapper filter-input" style="flex:0.5;">
+              <input type="date" id="history-filter-date-from" title="From date">
+            </div>
+            <div class="input-field-wrapper filter-input" style="flex:0.5;">
+              <input type="date" id="history-filter-date-to" title="To date">
+            </div>
+          </div>
+          <!-- Table -->
+          <div id="history-table-container">
+            <!-- Rendered dynamically by JS -->
+          </div>
+          <!-- Footer with total and actions -->
+          <div class="history-footer">
+            <div class="history-total">
+              <span class="history-total-label">Filtered Total:</span>
+              <span id="history-filtered-total" class="history-total-value">₹0.00</span>
+            </div>
+            <div class="history-actions">
+              <button id="export-csv-btn" class="btn btn-sm btn-export">📥 Export CSV</button>
+              <button id="clear-history-btn" class="btn btn-sm btn-danger">🗑️ Clear All History</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+    <!-- Reset Capability Button Container -->
+    <div class="reset-container">
+      <button id="reset-btn" class="btn btn-danger">
+        <span class="btn-icon">🔄</span> Reset Application
+      </button>
+    </div>
+  </main>
+  <!-- Connect script -->
+  <script src="script.js"></script>
+</body>
+</html>
