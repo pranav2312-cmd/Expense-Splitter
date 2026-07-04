@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
-  
+  <!-- Connect styles -->
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -17,7 +17,7 @@
   <div class="glow-bg glow-1"></div>
   <div class="glow-bg glow-2"></div>
 
-  
+  <!-- Toast notification container -->
   <div id="toast-container" class="toast-container"></div>
 
   <main class="app-container">
@@ -91,6 +91,16 @@
                 <input type="date" id="expense-date">
               </div>
             </div>
+            <!-- Multiple Payers Area (hidden by default) -->
+            <div id="multi-payer-container" class="multi-payer-container" style="display: none; margin-bottom: 1.25rem;">
+              <span class="label-text">Specify who paid what:</span>
+              <div id="multi-payer-inputs" class="multi-payer-inputs-grid">
+                <!-- Dynamically populated fields -->
+              </div>
+              <div class="multi-payer-status">
+                <span id="multi-payer-status-text">Total: ₹0.00 / ₹0.00 (Remaining: ₹0.00)</span>
+              </div>
+            </div>
             <button type="button" id="add-expense-btn" class="btn btn-secondary btn-full">Add Expense</button>
           </form>
         </div>
@@ -133,6 +143,22 @@
             <div class="input-field-wrapper">
               <label for="custom-split-amount">Enter Amount to Split (₹)</label>
               <input type="number" id="custom-split-amount" placeholder="e.g., 5000" min="0.01" step="0.01">
+            </div>
+          </div>
+          <!-- Member Selector for Split -->
+          <div class="split-member-selector">
+            <div class="split-member-header">
+              <span class="label-text">Split Among:</span>
+              <div class="split-member-actions">
+                <button type="button" class="btn btn-sm btn-outline" id="select-all-split">Select All</button>
+                <button type="button" class="btn btn-sm btn-outline" id="deselect-all-split">Deselect All</button>
+              </div>
+            </div>
+            <div id="split-members-grid" class="split-members-grid">
+              <p class="empty-text">Add members above to select who splits the bill.</p>
+            </div>
+            <div class="split-member-counter">
+              <span id="split-count-display">0 of 0 members selected</span>
             </div>
           </div>
           <button id="calculate-btn" class="btn btn-accent btn-full">Calculate Split</button>
