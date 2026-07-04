@@ -1,12 +1,4 @@
-/* ==========================================================================
-   FAIRSHARE EXPENSE SPLITTER - APPLICATION LOGIC
-   ========================================================================== */
 
-/* --------------------------------------------------------------------------
-   1. Application State (loaded from localStorage if available)
-   -------------------------------------------------------------------------- */
-
-// Currency symbol used throughout the app
 const CURRENCY = '₹';
 
 // LocalStorage keys
@@ -16,10 +8,6 @@ const LS_KEY_EXPENSES = 'fairshare_expenses';
 // Load persisted state or initialize empty
 let members = loadFromStorage(LS_KEY_MEMBERS, []);
 let expenses = loadFromStorage(LS_KEY_EXPENSES, []);
-
-/* --------------------------------------------------------------------------
-   2. DOM Element Selectors
-   -------------------------------------------------------------------------- */
 // Selecting elements using their unique IDs to manipulate their content or listen to events
 const memberNameInput = document.getElementById('member-name-input');
 const addMemberBtn = document.getElementById('add-member-btn');
@@ -684,7 +672,7 @@ function resetApp() {
 
 /* --------------------------------------------------------------------------
    13. Utility Helpers
-   -------------------------------------------------------------------------- */
+   -------------------------------------------------------- */
 
 /**
  * Formats a date string (YYYY-MM-DD) to a friendlier display format.
