@@ -1,4 +1,12 @@
+/* ==========================================================================
+   FAIRSHARE EXPENSE SPLITTER - APPLICATION LOGIC
+   ========================================================================== */
 
+/* --------------------------------------------------------------------------
+   1. Application State (loaded from localStorage if available)
+   -------------------------------------------------------------------------- */
+
+// Currency symbol used throughout the app
 const CURRENCY = '₹';
 
 // LocalStorage keys
@@ -8,6 +16,10 @@ const LS_KEY_EXPENSES = 'fairshare_expenses';
 // Load persisted state or initialize empty
 let members = loadFromStorage(LS_KEY_MEMBERS, []);
 let expenses = loadFromStorage(LS_KEY_EXPENSES, []);
+
+/* --------------------------------------------------------------------------
+   2. DOM Element Selectors
+   -------------------------------------------------------------------------- */
 // Selecting elements using their unique IDs to manipulate their content or listen to events
 const memberNameInput = document.getElementById('member-name-input');
 const addMemberBtn = document.getElementById('add-member-btn');
@@ -25,12 +37,25 @@ const shareDisplay = document.getElementById('share-display');
 const breakdownList = document.getElementById('breakdown-list');
 const resetBtn = document.getElementById('reset-btn');
 
+// Multi-payer selectors
+const multiPayerContainer = document.getElementById('multi-payer-container');
+const multiPayerInputs = document.getElementById('multi-payer-inputs');
+const multiPayerStatusText = document.getElementById('multi-payer-status-text');
+
+
 // Split mode selectors
 const modeTotalBtn = document.getElementById('mode-total-btn');
 const modeCustomBtn = document.getElementById('mode-custom-btn');
 const customAmountWrapper = document.getElementById('custom-amount-wrapper');
 const customSplitAmountInput = document.getElementById('custom-split-amount');
 let splitMode = 'total'; // 'total' or 'custom'
+
+// Split member selector
+const splitMembersGrid = document.getElementById('split-members-grid');
+const splitCountDisplay = document.getElementById('split-count-display');
+const selectAllSplitBtn = document.getElementById('select-all-split');
+const deselectAllSplitBtn = document.getElementById('deselect-all-split');
+let selectedSplitMembers = new Set(); // Members included in the split
 
 // Bill History section selectors
 const historyCountBadge = document.getElementById('history-count-badge');
@@ -57,6 +82,7 @@ setDefaultDate();
 
 // Initial render from persisted data
 renderMembers();
+renderSplitMemberSelector();
 renderExpenses();
 renderBillHistory();
 
@@ -73,6 +99,16 @@ resetBtn.addEventListener('click', resetApp);
 modeTotalBtn.addEventListener('click', () => setSplitMode('total'));
 modeCustomBtn.addEventListener('click', () => setSplitMode('custom'));
 
+// Select All / Deselect All for split members
+selectAllSplitBtn.addEventListener('click', () => {
+  members.forEach(m => selectedSplitMembers.add(m));
+  renderSplitMemberSelector();
+});
+deselectAllSplitBtn.addEventListener('click', () => {
+  selectedSplitMembers.clear();
+  renderSplitMemberSelector();
+});
+
 // Allow pressing "Enter" in the member name input to submit instead of clicking
 memberNameInput.addEventListener('keypress', function(event) {
   if (event.key === 'Enter') {
@@ -83,6 +119,14 @@ memberNameInput.addEventListener('keypress', function(event) {
 
 // Bill History filter listeners (live filtering)
 historySearch.addEventListener('input', renderBillHistory);
+historyFilterPayer.addEventListener('change', renderBillHistory);
+historyFilterDateFrom.addEventListener('change', renderBillHistory);
+historyFilterDateTo.addEventListener('change', renderBillHistory);
+
+// Multi-payer form listeners
+expensePayerSelect.addEventListener('change', handlePayerSelectChange);
+expenseAmountInput.addEventListener('input', updateMultiPayerStatus);
+
 historyFilterPayer.addEventListener('change', renderBillHistory);
 historyFilterDateFrom.addEventListener('change', renderBillHistory);
 historyFilterDateTo.addEventListener('change', renderBillHistory);
@@ -176,6 +220,9 @@ function addMember() {
   // Persist and re-render
   persistState();
   renderMembers();
+  // Auto-select new members for the split
+  selectedSplitMembers.add(name);
+  renderSplitMemberSelector();
   renderBillHistory(); // Update payer filter dropdown
   showToast(`${name} added to the group!`);
 }
@@ -218,8 +265,15 @@ function renderMembers() {
     option.textContent = member;
     expensePayerSelect.appendChild(option);
   });
+  // Add Multiple Payers option if there are members
+  if (members.length > 0) {
+    const multipleOption = document.createElement('option');
+    multipleOption.value = 'multiple';
+    multipleOption.textContent = '👥 Multiple Payers...';
+    expensePayerSelect.appendChild(multipleOption);
+  }
   // Restore the selected option if that member is still present in the list
-  if (members.includes(currentSelectedPayer)) {
+  if (currentSelectedPayer === 'multiple' || members.includes(currentSelectedPayer)) {
     expensePayerSelect.value = currentSelectedPayer;
   }
 
@@ -265,12 +319,48 @@ function addExpense() {
     showToast('Please select the member who paid for this expense.', 'error');
     return;
   }
+
+  let payersMap = {};
+  let displayPayer = '';
+
+  if (payer === 'multiple') {
+    const inputs = document.querySelectorAll('.multi-payer-amount-input');
+    let currentSum = 0;
+    inputs.forEach(input => {
+      const val = parseFloat(input.value) || 0;
+      const name = input.getAttribute('data-member');
+      if (val > 0) {
+        payersMap[name] = val;
+        currentSum += val;
+      }
+    });
+
+    const difference = amount - currentSum;
+    if (Math.abs(difference) >= 0.005) {
+      showToast(`Total sum must equal ${CURRENCY}${amount.toFixed(2)}. Difference: ${CURRENCY}${difference.toFixed(2)}`, 'error');
+      return;
+    }
+
+    if (Object.keys(payersMap).length === 0) {
+      showToast('Please enter amount for at least one payer.', 'error');
+      return;
+    }
+
+    // Construct pretty string
+    const details = Object.entries(payersMap).map(([name, val]) => `${name}: ${CURRENCY}${val.toFixed(0)}`).join(', ');
+    displayPayer = `Multiple (${details})`;
+  } else {
+    payersMap[payer] = amount;
+    displayPayer = payer;
+  }
+
   // Create an expense object with location & date and push it to the state array
   const newExpense = {
     id: Date.now() + Math.random().toString(36).substring(2, 7),
     description: description,
     amount: amount,
-    payer: payer,
+    payer: displayPayer,
+    payers: payersMap,
     location: location,
     date: date
   };
@@ -280,6 +370,8 @@ function addExpense() {
   expenseAmountInput.value = '';
   expensePayerSelect.value = ''; // Reset select to placeholder
   expenseLocationInput.value = '';
+  multiPayerContainer.style.display = 'none';
+  multiPayerInputs.innerHTML = '';
   setDefaultDate();
   // Persist and re-render
   persistState();
@@ -351,10 +443,67 @@ function setSplitMode(mode) {
   }
 }
 
+/**
+ * Renders the interactive member selector chips for choosing who to include in the split.
+ */
+function renderSplitMemberSelector() {
+  splitMembersGrid.innerHTML = '';
+
+  if (members.length === 0) {
+    splitMembersGrid.innerHTML = '<p class="empty-text">Add members above to select who splits the bill.</p>';
+    splitCountDisplay.textContent = '0 of 0 members selected';
+    return;
+  }
+
+  // Clean up selectedSplitMembers — remove members that no longer exist
+  selectedSplitMembers.forEach(m => {
+    if (!members.includes(m)) selectedSplitMembers.delete(m);
+  });
+
+  members.forEach(member => {
+    const chip = document.createElement('div');
+    chip.className = 'split-member-chip';
+    if (selectedSplitMembers.has(member)) chip.classList.add('selected');
+
+    const initial = member.charAt(0).toUpperCase();
+    chip.innerHTML = `
+      <span class="split-chip-avatar">${initial}</span>
+      <span class="split-chip-name">${escapeHtml(member)}</span>
+      <span class="split-chip-check">${selectedSplitMembers.has(member) ? '✓' : ''}</span>
+    `;
+
+    chip.addEventListener('click', () => {
+      if (selectedSplitMembers.has(member)) {
+        selectedSplitMembers.delete(member);
+      } else {
+        selectedSplitMembers.add(member);
+      }
+      // Micro-animation
+      chip.classList.add('just-toggled');
+      setTimeout(() => chip.classList.remove('just-toggled'), 300);
+      renderSplitMemberSelector();
+    });
+
+    splitMembersGrid.appendChild(chip);
+  });
+
+  // Update counter
+  const selected = selectedSplitMembers.size;
+  const total = members.length;
+  splitCountDisplay.textContent = `${selected} of ${total} member${total !== 1 ? 's' : ''} selected`;
+}
+
 function calculateBalances() {
   // Edge Case: If there are no members in the group, we cannot split bills
   if (members.length === 0) {
     showToast('Please add at least one member to calculate splits.', 'error');
+    return;
+  }
+
+  // Get the list of members participating in this split
+  const splitMembers = members.filter(m => selectedSplitMembers.has(m));
+  if (splitMembers.length === 0) {
+    showToast('Please select at least one member to split among.', 'error');
     return;
   }
 
@@ -374,8 +523,8 @@ function calculateBalances() {
     amountToSplit = totalExpense;
   }
 
-  // 3. Calculate the Equal Share per person
-  const equalShare = amountToSplit / members.length;
+  // 3. Calculate the Equal Share per person (only among selected members)
+  const equalShare = amountToSplit / splitMembers.length;
 
   // Render these base calculations in our UI cards
   totalExpenseDisplay.textContent = `${CURRENCY}${amountToSplit.toFixed(2)}`;
@@ -384,13 +533,19 @@ function calculateBalances() {
   // Clear the previous individual breakdown results list
   breakdownList.innerHTML = '';
 
-  // 4. Calculate each member's total paid and net balance
-  // In 'custom' mode, we still show what each member actually paid vs their share of the custom amount
-  members.forEach(member => {
+  // 4. Calculate each selected member's total paid and net balance
+  splitMembers.forEach(member => {
     // Sum up all expenses paid specifically by this member
     const memberPaidTotal = expenses
-      .filter(exp => exp.payer === member)
-      .reduce((sum, current) => sum + current.amount, 0);
+      .reduce((sum, exp) => {
+        let paid = 0;
+        if (exp.payers && exp.payers[member] !== undefined) {
+          paid = exp.payers[member];
+        } else if (!exp.payers && exp.payer === member) {
+          paid = exp.amount;
+        }
+        return sum + paid;
+      }, 0);
     // Calculate balance (Positive: owed money back, Negative: owes money)
     const balance = memberPaidTotal - equalShare;
     // Create the visual container for the member's breakdown
@@ -406,28 +561,23 @@ function calculateBalances() {
     // Status Badge Element based on whether balance is positive, negative, or neutral
     const badgeSpan = document.createElement('span');
     badgeSpan.className = 'balance-badge';
-    if (balance > 0.005) { // Floating point correction threshold
-      // Member paid MORE than their share; they are owed money
+    if (balance > 0.005) {
       badgeSpan.classList.add('positive');
       badgeSpan.textContent = `Owed ${CURRENCY}${balance.toFixed(2)}`;
     } else if (balance < -0.005) {
-      // Member paid LESS than their share; they owe money
       badgeSpan.classList.add('negative');
       badgeSpan.textContent = `Owes ${CURRENCY}${Math.abs(balance).toFixed(2)}`;
     } else {
-      // Balance is essentially 0; they are settled up
       badgeSpan.classList.add('neutral');
       badgeSpan.textContent = 'Settled Up';
     }
-    // Append sub-elements to the breakdown wrapper item
     breakdownItem.appendChild(detailsDiv);
     breakdownItem.appendChild(badgeSpan);
-    // Append the completed breakdown item to the list in the DOM
     breakdownList.appendChild(breakdownItem);
   });
 
   const modeLabel = splitMode === 'custom' ? 'Custom amount' : 'Total expenses';
-  showToast(`${modeLabel} split calculated!`, 'info');
+  showToast(`${modeLabel} split among ${splitMembers.length} member${splitMembers.length !== 1 ? 's' : ''}!`, 'info');
 }
 
 /* --------------------------------------------------------------------------
@@ -451,7 +601,13 @@ function getFilteredExpenses() {
       if (!matchesDesc && !matchesLoc) return false;
     }
     // Payer filter
-    if (payerFilter && exp.payer !== payerFilter) return false;
+    if (payerFilter) {
+      if (exp.payers) {
+        if (!exp.payers[payerFilter] || exp.payers[payerFilter] <= 0) return false;
+      } else {
+        if (exp.payer !== payerFilter) return false;
+      }
+    }
     // Date range filter
     if (dateFrom && exp.date < dateFrom) return false;
     if (dateTo && exp.date > dateTo) return false;
@@ -652,6 +808,8 @@ function resetApp() {
     expenseLocationInput.value = '';
     setDefaultDate();
     expensePayerSelect.innerHTML = '<option value="" disabled selected>Select Payer</option>';
+    multiPayerContainer.style.display = 'none';
+    multiPayerInputs.innerHTML = '';
     // 4. Reset filter inputs
     historySearch.value = '';
     historyFilterPayer.innerHTML = '<option value="">All Payers</option>';
@@ -661,7 +819,9 @@ function resetApp() {
     totalExpenseDisplay.textContent = `${CURRENCY}0.00`;
     shareDisplay.textContent = `${CURRENCY}0.00`;
     // 6. Re-render list placeholders to initial empty states
+    selectedSplitMembers.clear();
     renderMembers();
+    renderSplitMemberSelector();
     renderExpenses();
     renderBillHistory();
     
@@ -670,9 +830,78 @@ function resetApp() {
   }
 }
 
+/**
+ * Toggles the multi-payer entry container based on dropdown selection.
+ */
+function handlePayerSelectChange() {
+  if (expensePayerSelect.value === 'multiple') {
+    renderMultiPayerInputs();
+    multiPayerContainer.style.display = 'block';
+  } else {
+    multiPayerContainer.style.display = 'none';
+    multiPayerInputs.innerHTML = '';
+  }
+}
+
+/**
+ * Dynamically lists all group members for entering their paid amounts.
+ */
+function renderMultiPayerInputs() {
+  multiPayerInputs.innerHTML = '';
+  
+  if (members.length === 0) {
+    multiPayerInputs.innerHTML = '<p class="empty-text">Please add members first.</p>';
+    return;
+  }
+
+  members.forEach(member => {
+    const row = document.createElement('div');
+    row.className = 'multi-payer-row';
+    
+    const initial = member.charAt(0).toUpperCase();
+    row.innerHTML = `
+      <span class="multi-payer-avatar">${initial}</span>
+      <span class="multi-payer-name">${escapeHtml(member)}</span>
+      <div class="multi-payer-input-wrapper">
+        <span class="multi-payer-input-prefix">₹</span>
+        <input type="number" class="multi-payer-amount-input" data-member="${escapeHtml(member)}" placeholder="0.00" min="0" step="0.01">
+      </div>
+    `;
+    
+    row.querySelector('input').addEventListener('input', updateMultiPayerStatus);
+    multiPayerInputs.appendChild(row);
+  });
+  
+  updateMultiPayerStatus();
+}
+
+/**
+ * Updates status text matching the sum of multi-payers to the total expense amount.
+ */
+function updateMultiPayerStatus() {
+  if (expensePayerSelect.value !== 'multiple') return;
+
+  const totalAmount = parseFloat(expenseAmountInput.value) || 0;
+  const inputs = document.querySelectorAll('.multi-payer-amount-input');
+  let currentSum = 0;
+  inputs.forEach(input => {
+    currentSum += parseFloat(input.value) || 0;
+  });
+  
+  const difference = totalAmount - currentSum;
+  
+  if (Math.abs(difference) < 0.005) {
+    multiPayerStatusText.textContent = `Total Matches! Sum: ${CURRENCY}${currentSum.toFixed(2)}`;
+    multiPayerStatusText.className = 'match';
+  } else {
+    multiPayerStatusText.textContent = `Sum: ${CURRENCY}${currentSum.toFixed(2)} of ${CURRENCY}${totalAmount.toFixed(2)} (Remaining: ${CURRENCY}${difference.toFixed(2)})`;
+    multiPayerStatusText.className = 'mismatch';
+  }
+}
+
 /* --------------------------------------------------------------------------
    13. Utility Helpers
-   -------------------------------------------------------- */
+   -------------------------------------------------------------------------- */
 
 /**
  * Formats a date string (YYYY-MM-DD) to a friendlier display format.
